@@ -54,6 +54,10 @@ self._kvoext_block = ^(__typeof(self) self, id value)
 
 @interface NSObject (KVOExt)
 
+-(void)didAddObserverForKeyPath:(NSString*)keyPath;
+-(void)didRemoveObserverForKeyPath:(NSString*)keyPath;
+-(void)didRemoveObserverInDeallocForKeyPath:(NSString*)keyPath;
+
 @property (nonatomic) id dataContext;
 -(void)unbind;
 

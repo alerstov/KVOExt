@@ -221,7 +221,8 @@ type val = [value selector]; \
 
 -(void)addBlock:(id)block forKeyPath:(NSString*)keyPath {
     NSMutableSet* set = _bindingsDictionary[keyPath];
-    if (set == nil) {
+    BOOL shouldAddObserver = set == nil;
+    if (shouldAddObserver) {
         set = [NSMutableSet set];
         _bindingsDictionary[keyPath] = set;
         
@@ -244,6 +245,10 @@ type val = [value selector]; \
     }
     
     weakRef1->weakObj = block;
+    
+    if (shouldAddObserver) {
+        [_dataSource didAddObserverForKeyPath:keyPath];
+    }
 }
 
 -(void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary<NSString *,id> *)change context:(void *)context {
@@ -264,6 +269,8 @@ type val = [value selector]; \
         // remove observer
         [_dataSource removeObserver:self forKeyPath:keyPath];
         [_bindingsDictionary removeObjectForKey:keyPath];
+        
+        [_dataSource didRemoveObserverForKeyPath:keyPath];
     }
 }
 
@@ -272,6 +279,8 @@ type val = [value selector]; \
     for (NSString* keyPath in _bindingsDictionary) {
         // remove observer
         [_dataSource removeObserver:self forKeyPath:keyPath];
+        
+        [_dataSource didRemoveObserverInDeallocForKeyPath:keyPath];
     }
 }
 
@@ -416,5 +425,9 @@ type val = [value selector]; \
         }
     }
 }
+
+-(void)didAddObserverForKeyPath:(NSString*)keyPath {}
+-(void)didRemoveObserverForKeyPath:(NSString *)keyPath {}
+-(void)didRemoveObserverInDeallocForKeyPath:(NSString *)keyPath {}
 
 @end
