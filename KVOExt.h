@@ -52,11 +52,13 @@ self._kvoext_block = ^(__typeof(self) self, __typeof(src._kvoext_new.keypath) va
 self._kvoext_block = ^(__typeof(self) self, id value)
 
 
+#define on_stop_observing self._kvoext_stopObservingBlock = ^(__typeof(self) self)
+
+
 @interface NSObject (KVOExt)
 
--(void)didAddObserverForKeyPath:(NSString*)keyPath;
--(void)didRemoveObserverForKeyPath:(NSString*)keyPath;
--(void)didRemoveObserverInDeallocForKeyPath:(NSString*)keyPath;
+-(void)didStartObservingKeyPath:(NSString*)keyPath;
+-(void)set_kvoext_stopObservingBlock:(id)block;
 
 @property (nonatomic) id dataContext;
 -(void)unbind;

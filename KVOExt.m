@@ -208,6 +208,8 @@ type val = [value selector]; \
 {
     id __unsafe_unretained _dataSource;
     NSMutableDictionary* _bindingsDictionary;
+    NSMutableDictionary* _stopObservingDictionary;
+    NSString* _currentKeyPath;
 }
 
 - (instancetype)initWithDataSource:(id)source {
@@ -215,6 +217,7 @@ type val = [value selector]; \
     if (self) {
         _dataSource = source;
         _bindingsDictionary = [NSMutableDictionary dictionary];
+        _stopObservingDictionary = [NSMutableDictionary dictionary];
     }
     return self;
 }
@@ -247,12 +250,38 @@ type val = [value selector]; \
     weakRef1->weakObj = block;
     
     if (shouldAddObserver) {
-        [_dataSource didAddObserverForKeyPath:keyPath];
+        _currentKeyPath = keyPath;
+        [_dataSource didStartObservingKeyPath:keyPath];
+        _currentKeyPath = nil;
+    }
+}
+
+-(void)addStopObservingBlock:(id)block
+{
+    if (_currentKeyPath != nil) {
+        NSMutableSet* set = _stopObservingDictionary[_currentKeyPath];
+        if (set == nil) {
+            set = [NSMutableSet set];
+            _stopObservingDictionary[_currentKeyPath] = set;
+        }
+        
+        [set addObject:[block copy]];
+    }
+}
+
+-(void)stopObservingKeyPath:(NSString*)keyPath inDealloc:(BOOL)inDealloc
+{
+    NSMutableSet* set = _stopObservingDictionary[keyPath];
+    [_stopObservingDictionary removeObjectForKey:keyPath];
+    
+    id src = inDealloc ? nil : _dataSource;
+    for (KVOExtBlockInvoker block in set) {
+        block(src);
     }
 }
 
 -(void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary<NSString *,id> *)change context:(void *)context {
-
+    
     id val = [_dataSource valueForKey:keyPath];
     
     NSMutableSet* set = _bindingsDictionary[keyPath];
@@ -270,7 +299,7 @@ type val = [value selector]; \
         [_dataSource removeObserver:self forKeyPath:keyPath];
         [_bindingsDictionary removeObjectForKey:keyPath];
         
-        [_dataSource didRemoveObserverForKeyPath:keyPath];
+        [self stopObservingKeyPath:keyPath inDealloc:NO];
     }
 }
 
@@ -280,7 +309,7 @@ type val = [value selector]; \
         // remove observer
         [_dataSource removeObserver:self forKeyPath:keyPath];
         
-        [_dataSource didRemoveObserverInDeallocForKeyPath:keyPath];
+        [self stopObservingKeyPath:keyPath inDealloc:YES];
     }
 }
 
@@ -300,7 +329,7 @@ type val = [value selector]; \
     assert(keyPath != nil);
     
     KVOExtToken* token = [KVOExtToken new];
-
+    
     _kvoext_tmp = [^(id block) {
         
         if (src == nil) { // lazy binding
@@ -312,7 +341,7 @@ type val = [value selector]; \
                 
                 id token = [owner _kvoext_observeKeyPath:keyPath raiseInitial:initial source:dataSource argType:argType];
                 owner._kvoext_block = block;
-
+                
                 return token;
             };
             
@@ -426,8 +455,12 @@ type val = [value selector]; \
     }
 }
 
--(void)didAddObserverForKeyPath:(NSString*)keyPath {}
--(void)didRemoveObserverForKeyPath:(NSString *)keyPath {}
--(void)didRemoveObserverInDeallocForKeyPath:(NSString *)keyPath {}
+-(void)didStartObservingKeyPath:(NSString *)keyPath {}
+-(void)set_kvoext_stopObservingBlock:(id)block
+{
+    // self - data source
+    KVOExtObserver* observer = objc_getAssociatedObject(self, ObserverKey);
+    [observer addStopObservingBlock:block];
+}
 
 @end
