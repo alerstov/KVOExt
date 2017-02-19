@@ -44,8 +44,8 @@
 #define _observe_macro(_0, _1, X, ...) X
 
 #define _observe_static(src, keypath, initial) \
-[self _kvoext_observeKeyPath:@#keypath raiseInitial:initial source:src._kvoext_source argType:@encode(__typeof(src._kvoext_new.keypath))]; \
-self._kvoext_block = ^(__typeof(self) self, __typeof(src._kvoext_new.keypath) value)
+[self _kvoext_observeKeyPath:@#keypath raiseInitial:initial source:[src _kvoext_source] argType:@encode(__typeof([src _kvoext_new].keypath))]; \
+self._kvoext_block = ^(__typeof(self) self, __typeof([src _kvoext_new].keypath) value)
 
 #define _observe_dynamic(keypath, initial) \
 [self _kvoext_observeKeyPath:@#keypath raiseInitial:initial source:nil argType:NULL]; \
