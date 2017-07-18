@@ -1,0 +1,7 @@
+language: objective-c
+osx_image: xcode8.3
+xcode_project: KVOExt.xcodeproj
+xcode_scheme: KVOExt
+
+script:
+- xcodebuild test -project "$TRAVIS_XCODE_PROJECT" -scheme "$TRAVIS_XCODE_SCHEME" -destination "name=iPhone SE" 

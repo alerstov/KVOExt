@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = "KVOExt"
-  s.version          = "0.1.3"
+  s.version          = "0.2.0"
   s.summary          = "Simplify work with KVO."
   s.homepage         = "https://github.com/alerstov/KVOExt"
   s.license          = 'MIT'
@@ -8,5 +8,5 @@ Pod::Spec.new do |s|
   s.source           = { :git => "https://github.com/alerstov/KVOExt.git", :tag => s.version.to_s }
   s.platform         = :ios, '7.0'
   s.requires_arc     = true
-  s.source_files     = '*.{h,m}'
+  s.source_files     = 'KVOExt/KVOExt.{h,m}'
 end
