@@ -7,23 +7,37 @@
 #import <objc/runtime.h>
 
 
-id _kvoext_source;
-NSString* _kvoext_keyPath;
-BOOL _kvoext_raiseInitial;
-const char* _kvoext_argType;
-id _kvoext_groupKey;
+// Source -> KVOExtObserver -> {keyPath:set} -> KVOExtBinding <- set <- KVOExtHolder <- Listener
+//  \            /     \                         /    |    \                             /  /
+//   -<- assign -       -------<- weak ----------     v     ---------- assign ->---------  /
+//                                                  block                                 /
+//                                                       ------------- assign ->----------
 
+
+// Source release -> KVOExtObserver dealloc -> cleanup
+// Listener release -> KVOExtHolder dealloc -> remove bindings from observers -> bindings release
+
+
+
+// macro used instead method to avoid autorelease
+#define OBSERVER(src) (src == nil ? nil : (objc_getAssociatedObject(src, ObserverKey) ?: ({ \
+id observer = [[KVOExtObserver alloc] initWithDataSource:src]; \
+objc_setAssociatedObject(src, ObserverKey, observer, OBJC_ASSOCIATION_RETAIN_NONATOMIC); \
+observer; })))
+
+
+typedef void(^KVOExtBlock)(id owner, id value);
+static KVOExtBlock typedInvoker(const char* argType, id block);
 
 static const void *ObserverKey = &ObserverKey;
 static const void *HolderKey = &HolderKey;
 static const void *DataContextKey = &DataContextKey;
 
-typedef void(^KVOExtBlock)(id owner, id value);
-
-static KVOExtBlock typedInvoker(const char* argType, id block);
-
-
-// Source -> Observer -> {keyPath:set} -> Binding <- set <- Holder <- Listener
+id _kvoext_source;
+NSString* _kvoext_keyPath;
+BOOL _kvoext_raiseInitial;
+const char* _kvoext_argType;
+id _kvoext_groupKey;
 
 
 #pragma mark - interfaces
@@ -198,7 +212,7 @@ static KVOExtBlock typedInvoker(const char* argType, id block);
 }
 
 -(void)removeGroup:(id)key {
-    NSMutableSet* toRemove = [NSMutableSet set];
+    NSMutableSet* toRemove = [NSMutableSet new];
     for (KVOExtBinding* binding in _bindings) {
         if ([binding->groupKey isEqual:key]) {
             // remove from source
@@ -227,16 +241,6 @@ static KVOExtBlock typedInvoker(const char* argType, id block);
 #pragma mark -  NSObject (KVOExt)
 
 @implementation NSObject (KVOExt)
-
-// get or create
--(KVOExtObserver*)_kvoext_observer {
-    KVOExtObserver* observer = objc_getAssociatedObject(self, ObserverKey);
-    if (observer == nil) {
-        observer = [[KVOExtObserver alloc] initWithDataSource:self];
-        objc_setAssociatedObject(self, ObserverKey, observer, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    }
-    return observer;
-}
 
 -(void)set_kvoext_block:(id)block {
     
@@ -269,15 +273,11 @@ static KVOExtBlock typedInvoker(const char* argType, id block);
         
         // source observer
         id source = isLazy ? objc_getAssociatedObject(self, DataContextKey) : _kvoext_source;
-        if (source != nil) {
-            KVOExtObserver* observer = [source _kvoext_observer];
-            binding->sourceObserver = observer;
-            
-            // add binding to source (if not nil)
-            [observer addBinding:binding];
-        } else {
-            binding->sourceObserver = nil;
-        }
+        KVOExtObserver* observer = OBSERVER(source);    // source may be nil
+        binding->sourceObserver = observer;             // observer may be nil
+
+        // add binding to source (if observer not nil)
+        [observer addBinding:binding];
     }
     
     // clean
@@ -320,7 +320,7 @@ static KVOExtBlock typedInvoker(const char* argType, id block);
     
     
     KVOExtObserver* oldObserver = oldDataContext != nil ? objc_getAssociatedObject(oldDataContext, ObserverKey) : nil;
-    KVOExtObserver* observer = [dataContext _kvoext_observer];
+    KVOExtObserver* observer = OBSERVER(dataContext);
     
     
     // shallow copy
@@ -339,7 +339,7 @@ static KVOExtBlock typedInvoker(const char* argType, id block);
         binding->sourceObserver = observer;
         
         // add binding to new source
-        [observer addBinding:binding];
+        [observer addBinding:binding]; // may affect holder->_bindings
     }
 }
 
@@ -419,9 +419,12 @@ static KVOExtBlock typedInvoker(const char* argType, id block) {
 if (strcmp(argType, @encode(type)) == 0) { \
 return ^(id owner, id value){ ((void(^)(id, type))block)(owner, (type)[value selector]); }; \
 }
+    // 32 bit: @encode(BOOL) -> c (char)
+    // 64 bit: @encode(BOOL) -> B (bool)
     
+    WRAP(char, charValue); // should be before BOOL
     WRAP(BOOL, boolValue);
-    WRAP(char, charValue);
+    
     WRAP(int, intValue);
     WRAP(short, shortValue);
     WRAP(long, longValue);

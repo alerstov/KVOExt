@@ -102,6 +102,7 @@ static void swizzle(Class cls, SEL origSel, SEL swizSel)
 @interface Source : NSObject
 @property (nonatomic) NSString* str;
 
+@property (nonatomic) char chrVal;
 @property (nonatomic) NSInteger intVal;
 @property (nonatomic) double doubleVal;
 @property (nonatomic) CGRect rect;
@@ -130,6 +131,7 @@ static void swizzle(Class cls, SEL origSel, SEL swizSel)
 @interface Listener : NSObject
 @property (nonatomic) NSString* str;
 @property (nonatomic) id key;
+@property (nonatomic) char chrResult;
 @end
 
 @implementation Listener
@@ -159,6 +161,13 @@ static void swizzle(Class cls, SEL origSel, SEL swizSel)
 
 -(void)unbindByKey {
     unbind(@"my_key");
+}
+
+-(void)observeChar:(Source *)src {
+    observe(src, chrVal) {
+        NSLog(@"-> %@", @(value));
+        self.chrResult = value;
+    };
 }
 
 -(void)observeAllPropTypes:(Source *)src {
@@ -702,5 +711,16 @@ static void swizzle(Class cls, SEL origSel, SEL swizSel)
     src.str = @"hello";
     AssertHandleCounter(2);
 }
+
+-(void)testCharOn32bit {
+    Source* src = [Source new];
+    Listener* listener = [Listener new];
+    
+    [listener observeChar:src];
+    
+    src.chrVal = 'a';
+    XCTAssertEqual(src.chrVal, listener.chrResult);
+}
+
 
 @end
