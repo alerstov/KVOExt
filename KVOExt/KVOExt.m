@@ -17,6 +17,8 @@
 // Source release -> KVOExtObserver dealloc -> cleanup
 // Listener release -> KVOExtHolder dealloc -> remove bindings from observers -> bindings release
 
+// remove binding from observer -> on_stop_observing if bindings count become 0
+
 
 
 // macro used instead method to avoid autorelease
@@ -125,21 +127,21 @@ id _kvoext_groupKey;
     }
 }
 
--(void)updateBinding:(KVOExtBinding*)binding  {
-    if (binding->raiseInitial) {
-        id val = [_dataSource valueForKey:binding->keyPath];
-        binding->block(binding->owner, val);
-    }
-}
-
 -(void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary<NSString *,id> *)change context:(void *)context {
     
     NSMutableSet* set = _bindingsDictionary[keyPath];
     if (set != nil) {
         id val = [_dataSource valueForKey:keyPath];
         
-        for (KVOExtBinding* binding in [set copy]) {
-            binding->block(binding->owner, val);
+        // _bindingsDictionary may change while iterating
+        // temporary retain bindings by additional set
+        NSMutableSet* set1 = [set copy];
+        
+        for (KVOExtBinding* binding in set1) {
+            KVOExtBlock block = binding->block; // block will be nil if binding requested to remove
+            if (block != nil) {
+                binding->block(binding->owner, val);
+            }
         }
     }
 }
@@ -215,6 +217,11 @@ id _kvoext_groupKey;
     NSMutableSet* toRemove = [NSMutableSet new];
     for (KVOExtBinding* binding in _bindings) {
         if ([binding->groupKey isEqual:key]) {
+            
+            // release block immediately
+            // binding itself may be temporary extra retained by observer
+            binding->block = nil;
+            
             // remove from source
             id observer = binding->sourceObserver; // may be nil
             [observer removeBinding:binding];
@@ -228,6 +235,11 @@ id _kvoext_groupKey;
 // on listener released
 -(void)dealloc {
     for (KVOExtBinding* binding in _bindings) {
+        
+        // release block immediately
+        // binding itself may be temporary extra retained by observer
+        binding->block = nil;
+        
         // remove from source
         id observer = binding->sourceObserver; // may be nil
         [observer removeBinding:binding];

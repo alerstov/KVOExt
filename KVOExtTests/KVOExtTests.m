@@ -254,6 +254,21 @@ static void swizzle(Class cls, SEL origSel, SEL swizSel)
     };
 }
 
+-(void)changeListenersWhileObserving:(Source *)src {
+    
+    __block Listener* current = nil;
+    
+    bind(src, str) {
+        Listener* x = [Listener new];
+        [x observeSource:src];  // add new binding to observer
+        current = x; // old current will be released -> binding removed from observer
+    };
+    
+    for (int i=0; i<20; ++i) {
+        src.str = @"";
+    }
+}
+
 -(void)dealloc {
     NSLog(@"listener dealloc");
 }
@@ -288,7 +303,7 @@ static void swizzle(Class cls, SEL origSel, SEL swizSel)
     
     for (NSString* clsName in RefCounters()) {
         NSNumber* count = RefCounters()[clsName];
-        XCTAssertEqual([count integerValue], 0);
+        XCTAssertEqual([count integerValue], 0, @"%@", clsName);
     }
 }
 
@@ -720,6 +735,13 @@ static void swizzle(Class cls, SEL origSel, SEL swizSel)
     
     src.chrVal = 'a';
     XCTAssertEqual(src.chrVal, listener.chrResult);
+}
+
+-(void)testChangeListenersWhileObserving {
+    Source* src = [Source new];
+    Listener* listener = [Listener new];
+    
+    [listener changeListenersWhileObserving:src];
 }
 
 
