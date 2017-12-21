@@ -127,7 +127,7 @@ id _kvoext_groupKey;
     }
 }
 
--(void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary<NSString *,id> *)change context:(void *)context {
+-(void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context {
     
     NSMutableSet* set = _bindingsDictionary[keyPath];
     if (set != nil) {
@@ -156,21 +156,7 @@ id _kvoext_groupKey;
     BOOL shouldRemoveObserver = set.count == 0;
     if (shouldRemoveObserver) {
         [_bindingsDictionary removeObjectForKey:keyPath];
-        
-        // remove observer
-        [_dataSource removeObserver:self forKeyPath:keyPath];
-        
-        [self stopObservingKeyPath:keyPath inDealloc:NO];
-    }
-}
-
-// on source released
--(void)dealloc {
-    for (NSString* keyPath in _bindingsDictionary) {
-        // remove observer
-        [_dataSource removeObserver:self forKeyPath:keyPath];
-        
-        [self stopObservingKeyPath:keyPath inDealloc:YES];
+        [self removeObserver:keyPath];
     }
 }
 
@@ -186,13 +172,25 @@ id _kvoext_groupKey;
     }
 }
 
--(void)stopObservingKeyPath:(NSString*)keyPath inDealloc:(BOOL)inDealloc {
-    NSMutableSet* set = _stopObservingDictionary[keyPath];
-    [_stopObservingDictionary removeObjectForKey:keyPath];
+-(void)removeObserver:(NSString*)keyPath {
+    // remove observer
+    [_dataSource removeObserver:self forKeyPath:keyPath];
     
-    id src = inDealloc ? nil : _dataSource;
-    for (id block in set) { // copy ???
-        ((void(^)())block)(src);
+    NSMutableSet* set = _stopObservingDictionary[keyPath];
+    if (set != nil) {
+        [_stopObservingDictionary removeObjectForKey:keyPath];
+        
+        // raise on_stop_observing block
+        for (id block in set) { // copy ???
+            ((void(^)())block)(_dataSource);
+        }
+    }
+}
+
+// on source released
+-(void)dealloc {
+    for (NSString* keyPath in _bindingsDictionary) {
+        [self removeObserver:keyPath];
     }
 }
 

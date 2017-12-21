@@ -42,7 +42,6 @@
 #define event_prop(name, ...) @property (nonatomic) _kvoext_macro(name, ##__VA_ARGS__, id) name
 #define event_raise(name, ...) self.name = _kvoext_macro(name, ##__VA_ARGS__, nil)
 
-// self == nil if stopping from dealloc
 #define on_stop_observing self._kvoext_stopObservingBlock = ^(__typeof(self) self)
 
 @interface NSObject (KVOExt)

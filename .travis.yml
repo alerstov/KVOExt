@@ -2,10 +2,21 @@ language: objective-c
 
 matrix:
   include:
-    - {osx_image: xcode7.3, env: DST="name=iPhone 5"}
-    - {osx_image: xcode7.3, env: DST="name=iPhone 5s"}
-    - {osx_image: xcode8.3, env: DST="name=iPhone 5"}
-    - {osx_image: xcode8.3, env: DST="name=iPhone 5s"}
+    - {osx_image: xcode6.4, env: 'DST="name=iPhone 5,OS=7.1"'}  # sdk 8.4
+    #- {osx_image: xcode6.4, env: 'DST="name=iPhone 5s,OS=7.1"'} # Unable to boot the iOS Simulator
+    - {osx_image: xcode7.3, env: 'DST="name=iPhone 5"'}         # sdk 9.3
+    - {osx_image: xcode7.3, env: 'DST="name=iPhone 5s"'}        # sdk 9.3
+    - {osx_image: xcode8.3, env: 'DST="name=iPhone 5"'}         # sdk 10.3
+    - {osx_image: xcode8.3, env: 'DST="name=iPhone 5s"'}        # sdk 10.3
+    - {osx_image: xcode9.2, env: 'DST="name=iPhone 5"'}         # sdk 11.2
+    - {osx_image: xcode9.2, env: 'DST="name=iPhone 5s"'}        # sdk 11.2
+
+before_script:
+- sw_vers
+- xcode-select -p
+- xcodebuild -version
+- xcodebuild -showsdks
+- xcrun simctl list
 
 script:
-- xcodebuild test -scheme KVOExt -destination "$DST" 
+- xcodebuild test -scheme KVOExt -destination "$DST"

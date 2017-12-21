@@ -4,6 +4,7 @@
 //
 
 #import <XCTest/XCTest.h>
+#import <UIKit/UIKit.h>
 #import "KVOExt.h"
 #import <objc/runtime.h>
 
@@ -77,7 +78,7 @@ static void swizzle(Class cls, SEL origSel, SEL swizSel)
 }
 
 -(void)onCreateClass:(NSString*)clsName {
-    if ([self class] == NSClassFromString(clsName)) {
+    if ([clsName isEqualToString:NSStringFromClass([self class])]) {
         NSNumber* x = RefCounters()[clsName] ?: @(0);
         NSInteger count = [x integerValue]+1;
         RefCounters()[clsName] = @(count);
@@ -86,7 +87,7 @@ static void swizzle(Class cls, SEL origSel, SEL swizSel)
 }
 
 -(void)onRemoveClass:(NSString*)clsName {
-    if ([self class] == NSClassFromString(clsName)) {
+    if ([clsName isEqualToString:NSStringFromClass([self class])]) {
         NSNumber* x = RefCounters()[clsName] ?: @(0);
         NSInteger count = [x integerValue]-1;
         RefCounters()[clsName] = @(count);

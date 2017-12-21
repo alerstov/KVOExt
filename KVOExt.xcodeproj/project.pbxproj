@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		84952E0F1FEC78B2001E2FD6 /* KVOExt.m in Sources */ = {isa = PBXBuildFile; fileRef = 84E734771F1E2B56006AB8F3 /* KVOExt.m */; };
 		84E734531F1E29E4006AB8F3 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 84E734521F1E29E4006AB8F3 /* main.m */; };
 		84E734561F1E29E4006AB8F3 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 84E734551F1E29E4006AB8F3 /* AppDelegate.m */; };
 		84E7346C1F1E29E4006AB8F3 /* KVOExtTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 84E7346B1F1E29E4006AB8F3 /* KVOExtTests.m */; };
@@ -211,6 +212,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				84952E0F1FEC78B2001E2FD6 /* KVOExt.m in Sources */,
 				84E7346C1F1E29E4006AB8F3 /* KVOExtTests.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -267,7 +269,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 10.3;
+				IPHONEOS_DEPLOYMENT_TARGET = 8.0;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
@@ -309,7 +311,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 10.3;
+				IPHONEOS_DEPLOYMENT_TARGET = 8.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
 				VALIDATE_PRODUCT = YES;
@@ -385,6 +387,7 @@
 				84E734721F1E29E4006AB8F3 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 		84E734731F1E29E4006AB8F3 /* Build configuration list for PBXNativeTarget "KVOExtTests" */ = {
 			isa = XCConfigurationList;
@@ -393,6 +396,7 @@
 				84E734751F1E29E4006AB8F3 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};
