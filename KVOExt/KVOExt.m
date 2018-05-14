@@ -100,6 +100,11 @@ id _kvoext_groupKey;
     return self;
 }
 
+-(BOOL)hasBindingsForKeyPath:(NSString*)keyPath {
+    NSMutableSet* set = _bindingsDictionary[keyPath];
+    return set.count > 0;
+}
+
 -(void)addBinding:(KVOExtBinding*)binding {
     NSString* keyPath = binding->keyPath;
     
@@ -361,6 +366,11 @@ id _kvoext_groupKey;
     // self is data source
     KVOExtObserver* observer = objc_getAssociatedObject(self, ObserverKey);
     [observer addStopObservingBlock:block];
+}
+
+-(BOOL)isObservingKeyPath:(NSString *)keyPath {
+    KVOExtObserver* observer = objc_getAssociatedObject(self, ObserverKey);
+    return [observer hasBindingsForKeyPath:keyPath];
 }
 
 @end

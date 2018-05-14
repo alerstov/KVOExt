@@ -47,6 +47,7 @@
 @interface NSObject (KVOExt)
 @property (nonatomic) id dataContext;
 -(void)didStartObservingKeyPath:(NSString*)keyPath;
+-(BOOL)isObservingKeyPath:(NSString *)keyPath;
 @end
 
 
