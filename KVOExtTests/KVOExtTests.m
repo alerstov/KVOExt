@@ -112,12 +112,18 @@ static void swizzle(Class cls, SEL origSel, SEL swizSel)
 
 @implementation Source
 
--(void)didStartObservingKeyPath:(NSString *)keyPath
-{
-    NSLog(@"source start observing: %@", keyPath);
-    on_stop_observing {
-        NSLog(@"source stop observing: %@, in dealloc: %@", keyPath, @(self == nil));
-    };
++(void)load {
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        
+        on_start_observing(Source, str) {
+            NSLog(@"source start observing: str");
+        };
+        
+        on_stop_observing(Source, str) {
+            NSLog(@"source stop observing: str, in dealloc: %@", @(inDealloc));
+        };
+    });
 }
 
 -(void)dealloc

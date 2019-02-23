@@ -42,12 +42,21 @@
 #define event_prop(name, ...) @property (nonatomic) _kvoext_macro(name, ##__VA_ARGS__, id) name
 #define event_raise(name, ...) self.name = _kvoext_macro(name, ##__VA_ARGS__, nil)
 
-#define on_stop_observing self._kvoext_stopObservingBlock = ^(__typeof(self) self)
+#define on_start_observing(cls, keypath) \
+NSAssert(self == [cls class], @"invalid clsass"); \
+_kvoext_keyPath = (__typeof((((cls*)0).keypath), @""))@#keypath; \
+self._kvoext_startObservingBlock = ^(cls* self)
+
+#define on_stop_observing(cls, keypath) \
+NSAssert(self == [cls class], @"invalid clsass"); \
+_kvoext_keyPath = (__typeof((((cls*)0).keypath), @""))@#keypath; \
+self._kvoext_stopObservingBlock = ^(cls* self, BOOL inDealloc)
+
+#define is_observing(obj, keypath) \
+[obj _kvoext_isObservingKeyPath:(__typeof((obj.keypath), @""))@#keypath]
 
 @interface NSObject (KVOExt)
 @property (nonatomic) id dataContext;
--(void)didStartObservingKeyPath:(NSString*)keyPath;
--(BOOL)isObservingKeyPath:(NSString *)keyPath;
 @end
 
 
@@ -92,7 +101,9 @@ extern long _kvoext_retain_count;
 
 -(void)set_kvoext_block:(id)block;
 -(void)_kvoext_unbind:(id)key;
+-(void)set_kvoext_startObservingBlock:(id)block;
 -(void)set_kvoext_stopObservingBlock:(id)block;
+-(BOOL)_kvoext_isObservingKeyPath:(NSString *)keyPath;
 
 -(instancetype)_kvoext_new; // self
 +(instancetype)_kvoext_new; // [self new]

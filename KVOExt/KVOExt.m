@@ -36,6 +36,9 @@ static KVOExtBlock typedInvoker(const char* argType, id block);
 static const void *ObserverKey = &ObserverKey;
 static const void *HolderKey = &HolderKey;
 static const void *DataContextKey = &DataContextKey;
+static const void *StartObservingKey = &StartObservingKey;
+static const void *StopObservingKey = &StopObservingKey;
+
 
 id _kvoext_source;
 NSString* _kvoext_keyPath;
@@ -69,8 +72,6 @@ long _kvoext_retain_count;
 @public
     id __unsafe_unretained _dataSource;
     NSMutableDictionary* _bindingsDictionary;
-    NSMutableDictionary* _stopObservingDictionary;
-    NSString* _currentKeyPath;
 }
 @end
 
@@ -100,7 +101,6 @@ long _kvoext_retain_count;
     if (self) {
         _dataSource = source;
         _bindingsDictionary = [NSMutableDictionary new];
-        _stopObservingDictionary = [NSMutableDictionary new];
     }
     return self;
 }
@@ -108,6 +108,32 @@ long _kvoext_retain_count;
 -(BOOL)hasBindingsForKeyPath:(NSString*)keyPath {
     NSMutableSet* set = _bindingsDictionary[keyPath];
     return set.count > 0;
+}
+
+-(void)startObserving:(NSString*)keypath {
+    Class cls = [_dataSource class];
+    while (true) {
+        NSDictionary* blocks = objc_getAssociatedObject(cls, StartObservingKey);
+        void(^block)(id) = blocks[keypath];
+        if (block != nil) {
+            block(_dataSource);
+        }
+        if (cls == [NSObject class]) break;
+        cls = [cls superclass];
+    }
+}
+
+-(void)stopObserving:(NSString*)keypath inDealloc:(BOOL)inDealloc {
+    Class cls = [_dataSource class];
+    while (true) {
+        NSDictionary* blocks = objc_getAssociatedObject(cls, StopObservingKey);
+        void(^block)(id, BOOL) = blocks[keypath];
+        if (block != nil) {
+            block(_dataSource, inDealloc);
+        }
+        if (cls == [NSObject class]) break;
+        cls = [cls superclass];
+    }
 }
 
 -(void)addBinding:(KVOExtBinding*)binding {
@@ -122,10 +148,7 @@ long _kvoext_retain_count;
         
         // add observer
         [_dataSource addObserver:self forKeyPath:keyPath options:0 context:NULL];
-        
-        _currentKeyPath = keyPath;
-        [_dataSource didStartObservingKeyPath:keyPath];
-        _currentKeyPath = nil;
+        [self startObserving:keyPath];
     } else {
         [set addObject:binding];
     }
@@ -167,34 +190,9 @@ long _kvoext_retain_count;
     BOOL shouldRemoveObserver = set.count == 0;
     if (shouldRemoveObserver) {
         [_bindingsDictionary removeObjectForKey:keyPath];
-        [self removeObserver:keyPath];
-    }
-}
-
--(void)addStopObservingBlock:(id)block {
-    if (_currentKeyPath != nil) {
-        NSMutableSet* set = _stopObservingDictionary[_currentKeyPath];
-        if (set == nil) {
-            set = [NSMutableSet set];
-            _stopObservingDictionary[_currentKeyPath] = set;
-        }
-        
-        [set addObject:[block copy]];
-    }
-}
-
--(void)removeObserver:(NSString*)keyPath {
-    // remove observer
-    [_dataSource removeObserver:self forKeyPath:keyPath];
-    
-    NSMutableSet* set = _stopObservingDictionary[keyPath];
-    if (set != nil) {
-        [_stopObservingDictionary removeObjectForKey:keyPath];
-        
-        // raise on_stop_observing block
-        for (id block in set) { // copy ???
-            ((void(^)())block)(_dataSource);
-        }
+        // remove observer
+        [_dataSource removeObserver:self forKeyPath:keyPath];
+        [self stopObserving:keyPath inDealloc:NO];
     }
 }
 
@@ -203,7 +201,9 @@ long _kvoext_retain_count;
     ASSERT_MAIN_THREAD
     
     for (NSString* keyPath in _bindingsDictionary) {
-        [self removeObserver:keyPath];
+        // remove observer
+        [_dataSource removeObserver:self forKeyPath:keyPath];
+        [self stopObserving:keyPath inDealloc:YES];
     }
 }
 
@@ -381,14 +381,29 @@ long _kvoext_retain_count;
 
 #pragma mark - start/stop observing
 
--(void)didStartObservingKeyPath:(NSString *)keyPath {}
--(void)set_kvoext_stopObservingBlock:(id)block {
-    // self is data source
-    KVOExtObserver* observer = objc_getAssociatedObject(self, ObserverKey);
-    [observer addStopObservingBlock:block];
+-(void)set_kvoext_startObservingBlock:(id)block {
+    NSMutableDictionary* blocks = objc_getAssociatedObject(self, StartObservingKey);
+    if (blocks == nil) {
+        blocks = [NSMutableDictionary new];
+        objc_setAssociatedObject(self, StartObservingKey, blocks, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    blocks[_kvoext_keyPath] = [block copy];
+    
+    _kvoext_keyPath = nil;
 }
 
--(BOOL)isObservingKeyPath:(NSString *)keyPath {
+-(void)set_kvoext_stopObservingBlock:(id)block {
+    NSMutableDictionary* blocks = objc_getAssociatedObject(self, StopObservingKey);
+    if (blocks == nil) {
+        blocks = [NSMutableDictionary new];
+        objc_setAssociatedObject(self, StopObservingKey, blocks, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    blocks[_kvoext_keyPath] = [block copy];
+    
+    _kvoext_keyPath = nil;
+}
+
+-(BOOL)_kvoext_isObservingKeyPath:(NSString *)keyPath {
     KVOExtObserver* observer = objc_getAssociatedObject(self, ObserverKey);
     return [observer hasBindingsForKeyPath:keyPath];
 }
