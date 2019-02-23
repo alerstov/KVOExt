@@ -27,6 +27,8 @@ id observer = [[KVOExtObserver alloc] initWithDataSource:src]; \
 objc_setAssociatedObject(src, ObserverKey, observer, OBJC_ASSOCIATION_RETAIN_NONATOMIC); \
 observer; })))
 
+#define ASSERT_MAIN_THREAD NSAssert([NSThread isMainThread], @"should be main thread");
+
 
 typedef void(^KVOExtBlock)(id owner, id value);
 static KVOExtBlock typedInvoker(const char* argType, id block);
@@ -40,6 +42,9 @@ NSString* _kvoext_keyPath;
 BOOL _kvoext_raiseInitial;
 const char* _kvoext_argType;
 id _kvoext_groupKey;
+#if DEBUG
+long _kvoext_retain_count;
+#endif
 
 
 #pragma mark - interfaces
@@ -133,7 +138,8 @@ id _kvoext_groupKey;
 }
 
 -(void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context {
-    
+    ASSERT_MAIN_THREAD
+
     NSMutableSet* set = _bindingsDictionary[keyPath];
     if (set != nil) {
         id val = [_dataSource valueForKey:keyPath];
@@ -194,6 +200,8 @@ id _kvoext_groupKey;
 
 // on source released
 -(void)dealloc {
+    ASSERT_MAIN_THREAD
+    
     for (NSString* keyPath in _bindingsDictionary) {
         [self removeObserver:keyPath];
     }
@@ -237,6 +245,8 @@ id _kvoext_groupKey;
 
 // on listener released
 -(void)dealloc {
+    ASSERT_MAIN_THREAD
+    
     for (KVOExtBinding* binding in _bindings) {
         
         // release block immediately
@@ -258,6 +268,13 @@ id _kvoext_groupKey;
 @implementation NSObject (KVOExt)
 
 -(void)set_kvoext_block:(id)block {
+    
+#if DEBUG
+    NSAssert(_kvoext_retain_count == CFGetRetainCount((__bridge CFTypeRef)self), @"block should not retain self");
+#endif
+    
+    ASSERT_MAIN_THREAD
+    NSAssert(_kvoext_argType == NULL || _kvoext_source != nil, @"source should not be nil");
     
     // skip if (argType != NULL && source == nil)
     if (_kvoext_argType == NULL || _kvoext_source != nil) {
@@ -304,6 +321,7 @@ id _kvoext_groupKey;
 }
 
 -(void)_kvoext_unbind:(id)key {
+    ASSERT_MAIN_THREAD
     KVOExtHolder* holder = objc_getAssociatedObject(self, HolderKey);
     [holder removeGroup:key];
 }
@@ -322,6 +340,8 @@ id _kvoext_groupKey;
 }
 
 -(void)setDataContext:(id)dataContext {
+    
+    ASSERT_MAIN_THREAD
     
     id oldDataContext = objc_getAssociatedObject(self, DataContextKey);
     if (oldDataContext == dataContext) return;

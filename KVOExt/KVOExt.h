@@ -54,12 +54,19 @@
 //-----------------------------------------------------------
 #define _kvoext_macro(_0, X, ...) X
 
+#if DEBUG
+#define _kvoext_save_retain_count() _kvoext_retain_count = CFGetRetainCount((__bridge CFTypeRef)self);
+#else
+#define _kvoext_save_retain_count()
+#endif
+
 #define _observe_static(initial, src, keypath, ...) \
 _kvoext_source = [src _kvoext_source]; \
 _kvoext_groupKey = _kvoext_macro(0, ##__VA_ARGS__, nil); \
 _kvoext_raiseInitial = initial; \
 _kvoext_keyPath = @#keypath; \
 _kvoext_argType = @encode(__typeof([src _kvoext_new].keypath)); \
+_kvoext_save_retain_count() \
 self._kvoext_block = ^(__typeof(self) self, __typeof([src _kvoext_new].keypath) value)
 
 #define _observe_dynamic(initial, keypath, ...) \
@@ -68,6 +75,7 @@ _kvoext_groupKey = _kvoext_macro(0, ##__VA_ARGS__, nil); \
 _kvoext_raiseInitial = initial; \
 _kvoext_keyPath = @#keypath; \
 _kvoext_argType = NULL; \
+_kvoext_save_retain_count() \
 self._kvoext_block = ^(__typeof(self) self, id value)
 
 extern id _kvoext_source;
@@ -75,6 +83,10 @@ extern NSString* _kvoext_keyPath;
 extern BOOL _kvoext_raiseInitial;
 extern const char* _kvoext_argType;
 extern id _kvoext_groupKey;
+#if DEBUG
+extern long _kvoext_retain_count;
+#endif
+
 
 @interface NSObject (KVOExtPrivate)
 

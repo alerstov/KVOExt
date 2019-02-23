@@ -779,4 +779,50 @@ static void swizzle(Class cls, SEL origSel, SEL swizSel)
     AssertHandleCounter(1);
 }
 
+-(void)testNilSource {
+    Listener* listener = [Listener new];
+    XCTAssertThrows( [listener bindSource:nil] );
+}
+
+
+@end
+
+
+
+@interface KVOExtAsyncTests : XCTestCase
+@end
+@implementation KVOExtAsyncTests
+
+-(void)testAsyncBind {
+    
+    XCTestExpectation *exp = [self expectationWithDescription:@""];
+    
+    Source* src = [Source new];
+    Listener* listener = [Listener new];
+    
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        XCTAssertThrows( [listener bindSource:src] );
+        [exp fulfill];
+    });
+    
+    [self waitForExpectationsWithTimeout:1.0 handler:nil];
+}
+
+-(void)testAsyncRaise {
+    
+    XCTestExpectation *exp = [self expectationWithDescription:@""];
+    
+    Source* src = [Source new];
+    Listener* listener = [Listener new];
+    
+    [listener bindSource:src];
+    
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        XCTAssertThrows( src.str = @"1" );
+        [exp fulfill];
+    });
+    
+    [self waitForExpectationsWithTimeout:1.0 handler:nil];
+}
+
 @end
