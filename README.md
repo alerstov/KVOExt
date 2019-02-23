@@ -66,15 +66,13 @@ observe(src, loading) { ... }
 ### Start/stop observing
 Execute some code on start/stop observing of properties. Useful for UI. See examples.
 ```objective-c
--(void)didStartObservingKeyPath:(NSString *)keyPath {
-    [super didStartObservingKeyPath:keyPath];
-    if ([keyPath isEqualToString:@"click"]) {
-        // <start observing code >
-        on_stop_observing {
-            // <stop observing code >
-        };
-    }
-}
+on_start_observing(ClsName, propName) {
+    // <start observing code >
+};
+
+on_stop_observing(ClsName, propName) {
+    // <stop observing code >
+};
 ```
 
 
@@ -140,16 +138,18 @@ Execute some code on start/stop observing of properties. Useful for UI. See exam
 event_prop(click);
 @end
 @implementation UIButton (ClickHelper)
--(void)didStartObservingKeyPath:(NSString *)keyPath {
-    [super didStartObservingKeyPath:keyPath];
-    if ([keyPath isEqualToString:@"click"]) {        
-        [self addTarget:self action:@selector(_touchUpInside) forControlEvents:UIControlEventTouchUpInside];
-
-        UIButton __weak* weakSelf = self;
-        on_stop_observing {
-            [weakSelf removeTarget:self action:@selector(_touchUpInside) forControlEvents:UIControlEventTouchUpInside];
++(void)load {
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        on_start_observing(UIButton, click) {
+            [self addTarget:self action:@selector(_onTouchUpInside) forControlEvents:UIControlEventTouchUpInside];
         };
-    }
+        on_stop_observing(UIButton, click) {
+            if (!inDealloc) {
+                [self removeTarget:self action:@selector(_onTouchUpInside) forControlEvents:UIControlEventTouchUpInside];
+            }
+        };
+    });
 }
 -(void)_touchUpInside {
     event_raise(click);
