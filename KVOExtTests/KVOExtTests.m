@@ -137,6 +137,33 @@ static void swizzle(Class cls, SEL origSel, SEL swizSel)
 
 @implementation Listener
 
+- (instancetype)initWithSource:(Listener*)src
+{
+    self = [super init];
+    if (self) {
+        observe(src, str) {
+            NSLog(@"-> %@", value);
+            HandleCounter++;
+        };
+    }
+    return self;
+}
+
+
+- (instancetype)initWithResolvingSourceInBind
+{
+    self = [super init];
+    if (self) {
+        // initWithSource contains observe
+        // it should not affect on bind
+        bind([[Listener alloc]initWithSource:self], str) {
+            NSLog(@"-> %@", value);
+            HandleCounter++;
+        };
+    }
+    return self;
+}
+
 -(void)bindSource:(Source*)src {
     
     bind(src, str) {
@@ -745,5 +772,11 @@ static void swizzle(Class cls, SEL origSel, SEL swizSel)
     [listener changeListenersWhileObserving:src];
 }
 
+-(void)testResolvingSourceInBind {
+    Listener* listener = [[Listener alloc]initWithResolvingSourceInBind];
+    AssertHandleCounter(1);
+    listener.str = @"1";
+    AssertHandleCounter(1);
+}
 
 @end
