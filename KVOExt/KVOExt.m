@@ -71,6 +71,7 @@ long _kvoext_retain_count;
 {
 @public
     id __unsafe_unretained _dataSource;
+    id __weak _weakDataSource; // nil in source dealloc
     NSMutableDictionary* _bindingsDictionary;
 }
 @end
@@ -100,6 +101,7 @@ long _kvoext_retain_count;
     self = [super init];
     if (self) {
         _dataSource = source;
+        _weakDataSource = source;
         _bindingsDictionary = [NSMutableDictionary new];
     }
     return self;
@@ -123,7 +125,8 @@ long _kvoext_retain_count;
     }
 }
 
--(void)stopObserving:(NSString*)keypath inDealloc:(BOOL)inDealloc {
+-(void)stopObserving:(NSString*)keypath {
+    BOOL inDealloc = _weakDataSource == nil;
     Class cls = [_dataSource class];
     while (true) {
         NSDictionary* blocks = objc_getAssociatedObject(cls, StopObservingKey);
@@ -192,7 +195,7 @@ long _kvoext_retain_count;
         [_bindingsDictionary removeObjectForKey:keyPath];
         // remove observer
         [_dataSource removeObserver:self forKeyPath:keyPath];
-        [self stopObserving:keyPath inDealloc:NO];
+        [self stopObserving:keyPath];
     }
 }
 
@@ -203,7 +206,7 @@ long _kvoext_retain_count;
     for (NSString* keyPath in _bindingsDictionary) {
         // remove observer
         [_dataSource removeObserver:self forKeyPath:keyPath];
-        [self stopObserving:keyPath inDealloc:YES];
+        [self stopObserving:keyPath];
     }
 }
 

@@ -9,6 +9,7 @@
 #import <objc/runtime.h>
 
 
+static BOOL StopObservingInDealloc;
 static NSInteger HandleCounter;
 
 static NSMutableDictionary* RefCounters() {
@@ -121,13 +122,24 @@ static void swizzle(Class cls, SEL origSel, SEL swizSel)
         };
         
         on_stop_observing(Source, str) {
+            StopObservingInDealloc = inDealloc;
             NSLog(@"source stop observing: str, in dealloc: %@", @(inDealloc));
         };
     });
 }
 
--(void)dealloc
-{
+-(void)bindSelf {
+    bind(self, str, @"self_key") {
+        NSLog(@"-> %@", value);
+        HandleCounter++;
+    };
+}
+-(void)unbindSelf {
+    unbind(@"self_key");
+}
+
+
+-(void)dealloc {
     NSLog(@"source dealloc");
 }
 
@@ -227,13 +239,6 @@ static void swizzle(Class cls, SEL origSel, SEL swizSel)
     };
 }
 
--(void)bindSelf {
-    bind(self, str) {
-        NSLog(@"-> %@", value);
-        HandleCounter++;
-    };
-}
-
 -(void)nestedBindSource:(Source*)src {
     
     bind(src, str) {
@@ -328,6 +333,7 @@ static void swizzle(Class cls, SEL origSel, SEL swizSel)
     [super setUp];
     
     // reset
+    StopObservingInDealloc = NO;
     HandleCounter = 0;
     [RefCounters() removeAllObjects];
 }
@@ -439,23 +445,22 @@ static void swizzle(Class cls, SEL origSel, SEL swizSel)
 }
 
 - (void)testBindSelf {
-    Listener* listener = [Listener new];
+    Source* src = [Source new];
     
-    [listener bindSelf];
+    [src bindSelf];
     AssertBindingCounter(1);
     AssertHandleCounter(1);
     
-    listener.str = @"hello";
+    src.str = @"hello";
     AssertHandleCounter(2);
     
-    [listener bindSelf];
+    [src bindSelf];
     AssertBindingCounter(2);
     AssertHandleCounter(3);
     
-    listener.str = @"hello";
+    src.str = @"hello";
     AssertHandleCounter(5);
 }
-
 
 - (void)testBindAgain {
     Source* src = [Source new];
@@ -790,6 +795,57 @@ static void swizzle(Class cls, SEL origSel, SEL swizSel)
     XCTAssertThrows( [listener bindSource:nil] );
 }
 
+- (void)testStopObservingInDealloc1 {
+    {
+        __unused Source* src = [Source new];
+    }
+    XCTAssertEqual(StopObservingInDealloc, NO);
+}
+
+- (void)testStopObservingInDealloc2 {
+    {
+        Source* src = [Source new];
+        [src bindSelf];
+    }
+    XCTAssertEqual(StopObservingInDealloc, YES);
+}
+
+- (void)testStopObservingInDealloc3 {
+    {
+        Source* src = [Source new];
+        [src bindSelf];
+        [src unbindSelf];
+    }
+    XCTAssertEqual(StopObservingInDealloc, NO);
+}
+
+- (void)testStopObservingInDealloc4 {
+    Listener* listener = [Listener new];
+    {
+        Source* src = [Source new];
+        [listener bindSource:src];
+    }
+    XCTAssertEqual(StopObservingInDealloc, YES);
+}
+
+- (void)testStopObservingInDealloc5 {
+    Listener* listener = [Listener new];
+    {
+        Source* src = [Source new];
+        [listener observeSourceWithKey:src];
+        [listener unbindByKey];
+    }
+    XCTAssertEqual(StopObservingInDealloc, NO);
+}
+
+- (void)testStopObservingInDealloc6 {
+    Source* src = [Source new];
+    {
+        Listener* listener = [Listener new];
+        [listener observeSourceWithKey:src];
+    }
+    XCTAssertEqual(StopObservingInDealloc, NO);
+}
 
 @end
 
