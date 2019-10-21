@@ -116,7 +116,6 @@ static void swizzle(Class cls, SEL origSel, SEL swizSel)
 +(void)load {
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
-        
         on_start_observing(Source, str) {
             NSLog(@"source start observing: str");
         };
@@ -155,6 +154,8 @@ static void swizzle(Class cls, SEL origSel, SEL swizSel)
 
 @implementation Listener
 
+static Listener* sharedListener;
+
 - (instancetype)initWithSource:(Listener*)src
 {
     self = [super init];
@@ -164,6 +165,7 @@ static void swizzle(Class cls, SEL origSel, SEL swizSel)
             HandleCounter++;
         };
     }
+    sharedListener = self;
     return self;
 }
 
@@ -183,7 +185,6 @@ static void swizzle(Class cls, SEL origSel, SEL swizSel)
 }
 
 -(void)bindSource:(Source*)src {
-    
     bind(src, str) {
         NSLog(@"-> %@", value);
         HandleCounter++;
@@ -191,7 +192,6 @@ static void swizzle(Class cls, SEL origSel, SEL swizSel)
 }
 
 -(void)observeSource:(Source*)src {
-    
     observe(src, str) {
         NSLog(@"-> %@", value);
         HandleCounter++;
@@ -240,7 +240,6 @@ static void swizzle(Class cls, SEL origSel, SEL swizSel)
 }
 
 -(void)nestedBindSource:(Source*)src {
-    
     bind(src, str) {
         NSLog(@"-> %@", value);
         HandleCounter++;
@@ -253,7 +252,6 @@ static void swizzle(Class cls, SEL origSel, SEL swizSel)
 }
 
 -(void)nestedObserveSource:(Source*)src {
-    
     observe(src, str) {
         NSLog(@"-> %@", value);
         HandleCounter++;
@@ -308,6 +306,14 @@ static void swizzle(Class cls, SEL origSel, SEL swizSel)
     }
 }
 
+-(void)bindWithRetainingSelf {
+    Listener* self1 = self;
+    bind(Source, str) {
+        NSLog(@"-> %@", self1.str);
+        HandleCounter++;
+    };
+}
+
 -(void)dealloc {
     NSLog(@"listener dealloc");
 }
@@ -324,7 +330,7 @@ static void swizzle(Class cls, SEL origSel, SEL swizSel)
 
 
 @interface KVOExtTests : XCTestCase
-
+@property (nonatomic) BOOL skipTearDown;
 @end
 
 @implementation KVOExtTests
@@ -340,6 +346,8 @@ static void swizzle(Class cls, SEL origSel, SEL swizSel)
 
 - (void)tearDown {
     [super tearDown];
+    
+    if (self.skipTearDown) return;
     
     for (NSString* clsName in RefCounters()) {
         NSNumber* count = RefCounters()[clsName];
@@ -787,10 +795,12 @@ static void swizzle(Class cls, SEL origSel, SEL swizSel)
     Listener* listener = [[Listener alloc]initWithResolvingSourceInBind];
     AssertHandleCounter(1);
     listener.str = @"1";
-    AssertHandleCounter(1);
+    AssertHandleCounter(2);
+    sharedListener = nil;
 }
 
 -(void)testNilSource {
+    self.skipTearDown = YES;
     Listener* listener = [Listener new];
     XCTAssertThrows( [listener bindSource:nil] );
 }
@@ -845,6 +855,12 @@ static void swizzle(Class cls, SEL origSel, SEL swizSel)
         [listener observeSourceWithKey:src];
     }
     XCTAssertEqual(StopObservingInDealloc, NO);
+}
+
+- (void)testRetainSelf {
+    self.skipTearDown = YES;
+    Listener* listener = [Listener new];
+    XCTAssertThrows( [listener bindWithRetainingSelf] );
 }
 
 @end

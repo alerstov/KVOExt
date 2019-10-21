@@ -16,19 +16,16 @@
 
 // Source release -> KVOExtObserver dealloc -> cleanup
 // Listener release -> KVOExtHolder dealloc -> remove bindings from observers -> bindings release
-
 // remove binding from observer -> on_stop_observing if bindings count become 0
 
 
-
-// macro used instead method to avoid autorelease
+// macro used instead method to avoid autorelease on i386
 #define OBSERVER(src) (src == nil ? nil : (objc_getAssociatedObject(src, ObserverKey) ?: ({ \
 id observer = [[KVOExtObserver alloc] initWithDataSource:src]; \
 objc_setAssociatedObject(src, ObserverKey, observer, OBJC_ASSOCIATION_RETAIN_NONATOMIC); \
 observer; })))
 
-#define ASSERT_MAIN_THREAD NSAssert([NSThread isMainThread], @"should be main thread");
-
+#define ASSERT_MAIN_THREAD NSCAssert([NSThread isMainThread], @"should be main thread");
 
 typedef void(^KVOExtBlock)(id owner, id value);
 static KVOExtBlock typedInvoker(const char* argType, id block);
@@ -40,17 +37,16 @@ static const void *StartObservingKey = &StartObservingKey;
 static const void *StopObservingKey = &StopObservingKey;
 
 
-id _kvoext_source;
-NSString* _kvoext_keyPath;
-BOOL _kvoext_raiseInitial;
-const char* _kvoext_argType;
-id _kvoext_groupKey;
+static NSString* _kvoext_keyPath;
+static id _kvoext_binding;
+
 #if DEBUG
-long _kvoext_retain_count;
+static long _kvoext_retain_count;
+void _kvoext_save_retain_count(id __unsafe_unretained obj) {
+    _kvoext_retain_count = CFGetRetainCount((__bridge CFTypeRef)obj);
+}
 #endif
 
-
-#pragma mark - interfaces
 
 @interface KVOExtBinding : NSObject
 {
@@ -63,6 +59,7 @@ long _kvoext_retain_count;
     id __unsafe_unretained owner;
     KVOExtBlock block;
     NSString* keyPath;
+    const char* argType;
     BOOL raiseInitial;
 }
 @end
@@ -84,13 +81,10 @@ long _kvoext_retain_count;
 @end
 
 
-
 #pragma mark - KVOExtBinding
 
 @implementation KVOExtBinding
 @end
-
-
 
 
 #pragma mark - KVOExtObserver
@@ -132,6 +126,7 @@ long _kvoext_retain_count;
         NSDictionary* blocks = objc_getAssociatedObject(cls, StopObservingKey);
         void(^block)(id, BOOL) = blocks[keypath];
         if (block != nil) {
+            ASSERT_MAIN_THREAD
             block(_dataSource, inDealloc);
         }
         if (cls == [NSObject class]) break;
@@ -165,7 +160,7 @@ long _kvoext_retain_count;
 
 -(void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context {
     ASSERT_MAIN_THREAD
-
+    
     NSMutableSet* set = _bindingsDictionary[keyPath];
     if (set != nil) {
         id val = [_dataSource valueForKey:keyPath];
@@ -201,7 +196,8 @@ long _kvoext_retain_count;
 
 // on source released
 -(void)dealloc {
-    ASSERT_MAIN_THREAD
+    // source can be released in background thread but
+    // dataSource class should not have stop observing handlers
     
     for (NSString* keyPath in _bindingsDictionary) {
         // remove observer
@@ -211,7 +207,6 @@ long _kvoext_retain_count;
 }
 
 @end
-
 
 
 #pragma mark - KVOExtHolder
@@ -265,68 +260,24 @@ long _kvoext_retain_count;
 @end
 
 
-
 #pragma mark -  NSObject (KVOExt)
 
 @implementation NSObject (KVOExt)
 
 -(void)set_kvoext_block:(id)block {
-    
 #if DEBUG
     NSAssert(_kvoext_retain_count == CFGetRetainCount((__bridge CFTypeRef)self), @"block should not retain self");
 #endif
     
-    ASSERT_MAIN_THREAD
-    NSAssert(_kvoext_argType == NULL || _kvoext_source != nil, @"source should not be nil");
+    KVOExtBinding* b = _kvoext_binding;
+    _kvoext_binding = nil;
     
-    // skip if (argType != NULL && source == nil)
-    if (_kvoext_argType == NULL || _kvoext_source != nil) {
-        
-        // isLazy = argType == NULL || source is class
-        BOOL isLazy = _kvoext_argType == NULL || _kvoext_source == [_kvoext_source class];
-        
-        // block
-        KVOExtBlock block1 = _kvoext_argType != NULL ? typedInvoker(_kvoext_argType, block) : (KVOExtBlock)block;
-        
-        // binding
-        KVOExtBinding* binding = [KVOExtBinding new];
-        binding->groupKey = [_kvoext_groupKey copy];
-        binding->owner = self;
-        binding->block = [block1 copy];
-        binding->keyPath = _kvoext_keyPath; // copy ???
-        binding->raiseInitial = _kvoext_raiseInitial;
-        binding->isLazy = isLazy;
-        //binding->sourceObserver = nil;
-        
-        // bindings holder
-        KVOExtHolder* holder = objc_getAssociatedObject(self, HolderKey);
-        if (holder == nil) {
-            holder = [KVOExtHolder new];
-            objc_setAssociatedObject(self, HolderKey, holder, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        }
-        [holder->_bindings addObject:binding];
-        
-        // source observer
-        id source = isLazy ? objc_getAssociatedObject(self, DataContextKey) : _kvoext_source;
-        KVOExtObserver* observer = OBSERVER(source);    // source may be nil
-        binding->sourceObserver = observer;             // observer may be nil
-
-        // add binding to source (if observer not nil)
-        [observer addBinding:binding];
-    }
+    // block
+    KVOExtBlock block1 = b->argType != NULL ? typedInvoker(b->argType, block) : (KVOExtBlock)block;
+    b->block = [block1 copy];
     
-    // clean
-    _kvoext_groupKey = nil;
-    _kvoext_source = nil;
-    _kvoext_keyPath = nil;
-    // _kvoext_argType
-    // _kvoext_raiseInitial
-}
-
--(void)_kvoext_unbind:(id)key {
-    ASSERT_MAIN_THREAD
-    KVOExtHolder* holder = objc_getAssociatedObject(self, HolderKey);
-    [holder removeGroup:key];
+    // add binding to source (if observer not nil)
+    [b->sourceObserver addBinding:b];
 }
 
 -(instancetype)_kvoext_new { return self; }
@@ -343,9 +294,8 @@ long _kvoext_retain_count;
 }
 
 -(void)setDataContext:(id)dataContext {
-    
     ASSERT_MAIN_THREAD
-    
+
     id oldDataContext = objc_getAssociatedObject(self, DataContextKey);
     if (oldDataContext == dataContext) return;
     
@@ -381,9 +331,6 @@ long _kvoext_retain_count;
     }
 }
 
-
-#pragma mark - start/stop observing
-
 -(void)set_kvoext_startObservingBlock:(id)block {
     NSMutableDictionary* blocks = objc_getAssociatedObject(self, StartObservingKey);
     if (blocks == nil) {
@@ -406,13 +353,68 @@ long _kvoext_retain_count;
     _kvoext_keyPath = nil;
 }
 
--(BOOL)_kvoext_isObservingKeyPath:(NSString *)keyPath {
-    KVOExtObserver* observer = objc_getAssociatedObject(self, ObserverKey);
+@end
+
+
+#pragma mark - start/stop observing
+
+void _kvoext_startStopObserving(NSString* keyPath) {
+    _kvoext_keyPath = keyPath;
+}
+
+BOOL _kvoext_isObserving(id src, NSString* keyPath) {
+    KVOExtObserver* observer = objc_getAssociatedObject(src, ObserverKey);
     return [observer hasBindingsForKeyPath:keyPath];
 }
 
-@end
 
+#pragma mark - bind/unbind
+
+void _kvoext_bind(id obj, id src, NSString* keyPath, BOOL raiseInitial, const char* argType, id groupKey) {
+    ASSERT_MAIN_THREAD
+    
+    // static (direct): argType != NULL, src - instance
+    // static (lazy):   argType != NULL, src - class
+    // dynamic (lazy):  argType == NULL, src == nil
+    
+    BOOL dynamic = argType == NULL;
+    
+    NSCAssert(dynamic || src != nil, @"source should not be nil");
+    
+    BOOL lazy = dynamic || src == [src class];
+    
+    // binding
+    KVOExtBinding* binding = [KVOExtBinding new];
+    binding->groupKey = [groupKey copy];
+    binding->owner = obj;
+    binding->keyPath = keyPath; // copy ???
+    binding->argType = argType;
+    binding->raiseInitial = raiseInitial;
+    binding->isLazy = lazy;
+    //binding->sourceObserver = nil;
+    
+    // bindings holder
+    KVOExtHolder* holder = objc_getAssociatedObject(obj, HolderKey);
+    if (holder == nil) {
+        holder = [KVOExtHolder new];
+        objc_setAssociatedObject(obj, HolderKey, holder, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    [holder->_bindings addObject:binding];
+    
+    // source observer
+    id source = lazy ? objc_getAssociatedObject(obj, DataContextKey) : src;
+    KVOExtObserver* observer = OBSERVER(source);    // source may be nil
+    binding->sourceObserver = observer;             // observer may be nil
+    
+    _kvoext_binding = binding;
+}
+
+void _kvoext_unbind(id obj, id groupKey) {
+    ASSERT_MAIN_THREAD
+    
+    KVOExtHolder* holder = objc_getAssociatedObject(obj, HolderKey);
+    [holder removeGroup:groupKey];
+}
 
 
 #pragma mark - block helper

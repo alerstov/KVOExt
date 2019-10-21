@@ -37,23 +37,22 @@
 #define bindx(keypath, ...) _observe_dynamic(YES, keypath, ##__VA_ARGS__)
 #define observex(keypath, ...) _observe_dynamic(NO, keypath, ##__VA_ARGS__)
 
-#define unbind(key) [self _kvoext_unbind:key]
+#define unbind(key) _kvoext_unbind(self, key)
 
 #define event_prop(name, ...) @property (nonatomic) _kvoext_macro(name, ##__VA_ARGS__, id) name
 #define event_raise(name, ...) self.name = _kvoext_macro(name, ##__VA_ARGS__, nil)
 
 #define on_start_observing(cls, keypath) \
-NSAssert(self == [cls class], @"invalid clsass"); \
-_kvoext_keyPath = (__typeof((((cls*)0).keypath), @""))@#keypath; \
+NSAssert(self == [cls class], @"invalid class"); \
+_kvoext_startStopObserving((__typeof((((cls*)0).keypath), @""))@#keypath); \
 self._kvoext_startObservingBlock = ^(cls* self)
 
 #define on_stop_observing(cls, keypath) \
-NSAssert(self == [cls class], @"invalid clsass"); \
-_kvoext_keyPath = (__typeof((((cls*)0).keypath), @""))@#keypath; \
+NSAssert(self == [cls class], @"invalid class"); \
+_kvoext_startStopObserving((__typeof((((cls*)0).keypath), @""))@#keypath); \
 self._kvoext_stopObservingBlock = ^(cls* self, BOOL inDealloc)
 
-#define is_observing(obj, keypath) \
-[obj _kvoext_isObservingKeyPath:(__typeof((obj.keypath), @""))@#keypath]
+#define is_observing(src, keypath) _kvoext_isObserving(src, (__typeof((src.keypath), @""))@#keypath)
 
 @interface NSObject (KVOExt)
 @property (nonatomic) id dataContext;
@@ -64,51 +63,35 @@ self._kvoext_stopObservingBlock = ^(cls* self, BOOL inDealloc)
 #define _kvoext_macro(_0, X, ...) X
 
 #if DEBUG
-#define _kvoext_save_retain_count() _kvoext_retain_count = CFGetRetainCount((__bridge CFTypeRef)self);
+void _kvoext_save_retain_count(id __unsafe_unretained obj);
 #else
-#define _kvoext_save_retain_count()
+#define _kvoext_save_retain_count(obj)
 #endif
 
+
 #define _observe_static(initial, src, keypath, ...) \
-_kvoext_source = [src _kvoext_source]; \
-_kvoext_groupKey = _kvoext_macro(0, ##__VA_ARGS__, nil); \
-_kvoext_raiseInitial = initial; \
-_kvoext_keyPath = @#keypath; \
-_kvoext_argType = @encode(__typeof([src _kvoext_new].keypath)); \
-_kvoext_save_retain_count() \
+_kvoext_bind(self, [src _kvoext_source], @#keypath, initial, \
+@encode(__typeof([src _kvoext_new].keypath)), _kvoext_macro(0, ##__VA_ARGS__, nil)); \
+_kvoext_save_retain_count(self); \
 self._kvoext_block = ^(__typeof(self) self, __typeof([src _kvoext_new].keypath) value)
 
 #define _observe_dynamic(initial, keypath, ...) \
-_kvoext_source = nil; \
-_kvoext_groupKey = _kvoext_macro(0, ##__VA_ARGS__, nil); \
-_kvoext_raiseInitial = initial; \
-_kvoext_keyPath = @#keypath; \
-_kvoext_argType = NULL; \
-_kvoext_save_retain_count() \
+_kvoext_bind(self, nil, @#keypath, initial, NULL, _kvoext_macro(0, ##__VA_ARGS__, nil)); \
+_kvoext_save_retain_count(self); \
 self._kvoext_block = ^(__typeof(self) self, id value)
 
-extern id _kvoext_source;
-extern NSString* _kvoext_keyPath;
-extern BOOL _kvoext_raiseInitial;
-extern const char* _kvoext_argType;
-extern id _kvoext_groupKey;
-#if DEBUG
-extern long _kvoext_retain_count;
-#endif
-
+void _kvoext_bind(id obj, id src, NSString* keyPath, BOOL raiseInitial, const char* argType, id groupKey);
+void _kvoext_unbind(id obj, id groupKey);
+void _kvoext_startStopObserving(NSString* keyPath);
+BOOL _kvoext_isObserving(id src, NSString* keyPath);
 
 @interface NSObject (KVOExtPrivate)
-
 -(void)set_kvoext_block:(id)block;
--(void)_kvoext_unbind:(id)key;
 -(void)set_kvoext_startObservingBlock:(id)block;
 -(void)set_kvoext_stopObservingBlock:(id)block;
--(BOOL)_kvoext_isObservingKeyPath:(NSString *)keyPath;
 
--(instancetype)_kvoext_new; // self
+-(instancetype)_kvoext_new; // self 
 +(instancetype)_kvoext_new; // [self new]
-
 -(id)_kvoext_source; // self
 +(id)_kvoext_source; // class
-
 @end

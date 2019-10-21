@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = "KVOExt"
-  s.version          = "0.3.1"
+  s.version          = "0.4.0"
   s.summary          = "Simplify work with KVO."
   s.homepage         = "https://github.com/alerstov/KVOExt"
   s.license          = 'MIT'
